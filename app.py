@@ -1,133 +1,91 @@
 import os
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
 import cv2
-from torchvision import transforms
+import pandas as pd
+import numpy as np
 from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
+from torchvision import transforms
 
 app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ============================
-#Load Trained PyTorch Model
-# ============================
+# Load model and labels
 MODEL_PATH = 'traffic_sign_cnn.pth'
+LABEL_FILE = 'labels.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class_df = pd.read_csv(LABEL_FILE)
+class_names = class_df['Name'].tolist()
 
-class TrafficSignCNN(nn.Module):
+class TrafficSignCNN(torch.nn.Module):
     def __init__(self, num_classes=43):
         super(TrafficSignCNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(128 * 4 * 4, 512)
-        self.fc2 = nn.Linear(512, num_classes)
-        self.dropout = nn.Dropout(0.5)
+        self.conv1 = torch.nn.Conv2d(1, 32, 3, padding=1)
+        self.conv2 = torch.nn.Conv2d(32, 64, 3, padding=1)
+        self.conv3 = torch.nn.Conv2d(64, 128, 3, padding=1)
+        self.pool = torch.nn.MaxPool2d(2, 2)
+        self.fc1 = torch.nn.Linear(128 * 4 * 4, 512)
+        self.fc2 = torch.nn.Linear(512, num_classes)
+        self.dropout = torch.nn.Dropout(0.5)
 
     def forward(self, x):
         x = self.pool(torch.relu(self.conv1(x)))
         x = self.pool(torch.relu(self.conv2(x)))
         x = self.pool(torch.relu(self.conv3(x)))
-        x = x.view(x.size(0), -1)  # Flatten
+        x = x.view(x.size(0), -1)
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
         return x
 
-# Load the model
-model = TrafficSignCNN(num_classes=43).to(DEVICE)
+model = TrafficSignCNN().to(DEVICE)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
 model.eval()
 
-# ============================
-#Image Preprocessing
-# ============================
 def preprocess_image(img_path):
     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    
     if img is None:
-        raise ValueError("Invalid image file. Unable to read the image.")
-    
+        raise ValueError("Invalid image")
     img = cv2.resize(img, (32, 32))
-    img = cv2.equalizeHist(img)  # Histogram equalization
-    img = img.astype(np.float32) / 255.0  # Normalize and convert to float32
+    img = cv2.equalizeHist(img)
+    img = img.astype(np.float32) / 255.0
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+    return transform(img).unsqueeze(0).to(DEVICE)
 
-    transform = transforms.Compose([transforms.ToTensor()])
-    img = transform(img).unsqueeze(0)  # Add batch dimension
-    return img.to(torch.float32).to(DEVICE)  # Ensure float32 tensor
-
-# ============================
-#Get Class Name
-# ============================
-def getClassName(classNo):
-    class_names = [
-        'Speed Limit 20 km/h', 'Speed Limit 30 km/h', 'Speed Limit 50 km/h',
-        'Speed Limit 60 km/h', 'Speed Limit 70 km/h', 'Speed Limit 80 km/h',
-        'End of Speed Limit 80 km/h', 'Speed Limit 100 km/h', 'Speed Limit 120 km/h',
-        'No passing', 'No passing for vehicles over 3.5 metric tons',
-        'Right-of-way at the next intersection', 'Priority road', 'Yield', 'Stop',
-        'No vehicles', 'Vehicles over 3.5 metric tons prohibited', 'No entry',
-        'General caution', 'Dangerous curve to the left', 'Dangerous curve to the right',
-        'Double curve', 'Bumpy road', 'Slippery road', 'Road narrows on the right',
-        'Road work', 'Traffic signals', 'Pedestrians', 'Children crossing',
-        'Bicycles crossing', 'Beware of ice/snow', 'Wild animals crossing',
-        'End of all speed and passing limits', 'Turn right ahead', 'Turn left ahead',
-        'Ahead only', 'Go straight or right', 'Go straight or left', 'Keep right',
-        'Keep left', 'Roundabout mandatory', 'End of no passing',
-        'End of no passing by vehicles over 3.5 metric tons'
-    ]
-    return class_names[classNo] if 0 <= classNo < len(class_names) else "Unknown"
-
-# ============================
-#Model Prediction
-# ============================
-def model_predict(img_path):
-    try:
-        img = preprocess_image(img_path)
-        with torch.no_grad():
-            outputs = model(img)
-            probabilities = torch.softmax(outputs, dim=1)
-            classIndex = torch.argmax(probabilities).item()
-            probabilityValue = torch.max(probabilities).item()
-
-        return {
-            "class": getClassName(classIndex),
-            "confidence": round(probabilityValue * 100, 2)  # Convert to percentage
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-# ============================
-#Flask Routes
-# ============================
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def upload():
     if 'file' not in request.files:
-        return jsonify({"error": "No file part in request"})
-
-    f = request.files['file']
-    if f.filename == '':
+        return jsonify({"error": "No file"})
+    file = request.files['file']
+    if file.filename == '':
         return jsonify({"error": "No file selected"})
-
-    # Ensure uploads folder exists
-    upload_folder = os.path.join(os.getcwd(), 'uploads')
-    os.makedirs(upload_folder, exist_ok=True)
-
-    # Save file securely
-    file_path = os.path.join(upload_folder, secure_filename(f.filename))
-    f.save(file_path)
-
-    # Run prediction
-    prediction = model_predict(file_path)
-    return jsonify(prediction)  # Ensure JSON response
-
+    
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+    
+    try:
+        img = preprocess_image(filepath)
+        with torch.no_grad():
+            outputs = model(img)
+            probabilities = torch.softmax(outputs, 1)
+            class_idx = torch.argmax(probabilities).item()
+            confidence = probabilities[0][class_idx].item()
+        
+        return jsonify({
+            "class": class_names[class_idx],
+            "confidence": f"{confidence*100:.2f}%"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 if __name__ == '__main__':
     app.run(port=5001, debug=True)

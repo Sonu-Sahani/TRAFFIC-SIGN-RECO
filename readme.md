@@ -1,20 +1,12 @@
-# AI-Based Traffic Sign Recognition
+# Traffic Sign Recognition (Modern Version)
 
-An AI-based traffic sign recognition system built using **PyTorch and CNN**. Classifies traffic signs into **43 classes** with support for image upload, **live camera**, and **video analysis**.
+High-accuracy traffic sign classification using **ResNet18** (pretrained) + strong data augmentation. Supports **Image Upload**, **Live Camera**, and **Video Analysis**.
 
-## Features
-
-* Classifies **43 traffic sign categories**
-* Custom CNN with PyTorch
-* **Image Upload** prediction via Flask
-* **Live Camera** real-time detection (browser)
-* **Video Upload** analysis with summary of detections
-* Confidence threshold (65%+) for better accuracy display
-* GPU support when available
-
-## Tech Stack
-
-* Python, PyTorch, OpenCV, Flask, NumPy, Pandas
+## Why Better?
+- Pretrained ResNet18 → much better real-world accuracy
+- Heavy data augmentation (rotation, color, brightness, scale)
+- RGB images instead of only grayscale
+- Confidence threshold for reliable predictions
 
 ## Quick Start
 
@@ -22,23 +14,29 @@ An AI-based traffic sign recognition system built using **PyTorch and CNN**. Cla
 git clone https://github.com/Sonu-Sahani/TRAFFIC-SIGN-RECO.git
 cd TRAFFIC-SIGN-RECO
 pip install -r requirements.txt
+```
+
+### 1. Train the model (one time)
+```bash
+python train.py
+```
+This creates `best_traffic_sign_resnet.pth`.  
+**Recommended:** Use GPU. CPU pe 1–2 hours lag sakte hain.
+
+### 2. Run the web app
+```bash
 python app.py
 ```
+Open: http://localhost:5001
 
-Open: `http://localhost:5001`
+## Features
+- Image Upload prediction
+- Live Camera real-time detection
+- Video Upload → most common sign summary
+- High confidence badge (only shows strong predictions)
 
-### Modes
-1. **Image Upload** — Upload a photo and get prediction + confidence
-2. **Live Camera** — Allow camera access for real-time detection
-3. **Video Upload** — Upload a video and get the most detected sign summary
-
-## Model
-
-Trained CNN saved as `traffic_sign_cnn.pth`. Retrain with:
-```bash
-python main.py
-```
+## Tech Stack
+Python • PyTorch • ResNet18 • OpenCV • Flask • Bootstrap
 
 ## Author
-
 **Sonu Sahani** — [GitHub](https://github.com/Sonu-Sahani)

@@ -59,16 +59,35 @@ $(document).ready(function () {
     // ========== LIVE CAMERA ==========
     $('#start-camera').click(async function () {
         try {
-            videoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+            // Try with constraints first
+            const constraints = {
+                video: {
+                    width: { ideal: 480 },
+                    height: { ideal: 360 },
+                    facingMode: "environment"
+                }
+            };
+            videoStream = await navigator.mediaDevices.getUserMedia(constraints);
             document.getElementById('video').srcObject = videoStream;
             $('#start-camera').hide();
             $('#stop-camera').show();
+            $('#camera-result').html('<p class="text-info">Camera started. Point at a traffic sign...</p>');
             
-            // Predict every 800ms
             cameraInterval = setInterval(captureAndPredict, 800);
         } catch (err) {
-            alert('Camera access denied or not available');
             console.error(err);
+            let msg = "Camera access failed. ";
+            if (err.name === 'NotAllowedError') {
+                msg += "Permission denied. Please allow camera access in browser settings.";
+            } else if (err.name === 'NotFoundError') {
+                msg += "No camera found.";
+            } else if (err.name === 'NotReadableError') {
+                msg += "Camera is already in use by another app.";
+            } else {
+                msg += err.message || "Unknown error.";
+            }
+            alert(msg);
+            $('#camera-result').html(`<p class="text-danger">${msg}</p>`);
         }
     });
 
@@ -84,6 +103,8 @@ $(document).ready(function () {
 
     function captureAndPredict() {
         const video = document.getElementById('video');
+        if (!video.videoWidth) return;
+        
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = video.videoWidth;
@@ -133,7 +154,7 @@ $(document).ready(function () {
                 } else if (res.most_common_class) {
                     $('#video-result').html(`
                         <h4>Most Detected: <strong>${res.most_common_class}</strong></h4>
-                        <p>Detected in ${res.count} frames | Avg Confidence: ${res.avg_confidence}%</p>
+                        <p>Detected in ${res.count} frames</p>
                         <p>Total confident detections: ${res.total_detections} / ${res.frames_processed} frames</p>
                     `);
                 } else {

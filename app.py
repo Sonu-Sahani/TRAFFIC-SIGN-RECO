@@ -15,7 +15,7 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
-MODEL_PATH = 'best_efficientnet_gtsrb.pth'
+MODEL_PATH = 'best_efficientnet_gtsrb .pth'  # Note the space in filename
 LABEL_FILE = 'labels.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONFIDENCE_THRESHOLD = 0.55

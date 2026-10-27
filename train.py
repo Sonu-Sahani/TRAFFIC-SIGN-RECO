@@ -17,7 +17,6 @@ LEARNING_RATE = 0.001
 DATASET_PATH = "Dataset"
 LABEL_FILE = "labels.csv"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {DEVICE}")
 
 # Strong Augmentation for real-world robustness
 train_transform = transforms.Compose([
@@ -61,30 +60,6 @@ class TrafficSignDataset(Dataset):
             img = self.transform(img)
         return img, label
 
-# Load data
-full_dataset = TrafficSignDataset(DATASET_PATH)
-train_size = int(0.8 * len(full_dataset))
-val_size = len(full_dataset) - train_size
-train_set, val_set = random_split(full_dataset, [train_size, val_size])
-
-# Apply different transforms
-train_set.dataset.transform = train_transform
-val_set.dataset.transform = val_transform
-
-train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
-val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
-
-print(f"Train: {len(train_set)}, Val: {len(val_set)}")
-
-# ResNet18 Pretrained
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-model.fc = nn.Linear(model.fc.in_features, 43)
-model = model.to(DEVICE)
-
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-
 def train_epoch(model, loader, criterion, optimizer):
     model.train()
     running_loss = 0.0
@@ -119,20 +94,48 @@ def validate(model, loader, criterion):
             total += labels.size(0)
     return running_loss / len(loader), correct / total
 
-# Training loop
-best_acc = 0.0
-for epoch in range(EPOCHS):
-    print(f"\nEpoch {epoch+1}/{EPOCHS}")
-    train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer)
-    val_loss, val_acc = validate(model, val_loader, criterion)
-    scheduler.step()
-    print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f}")
-    print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
-    
-    if val_acc > best_acc:
-        best_acc = val_acc
-        torch.save(model.state_dict(), "best_traffic_sign_resnet.pth")
-        print(f"Saved best model with acc: {best_acc:.4f}")
+if __name__ == '__main__':
+    print(f"Using device: {DEVICE}")
 
-print(f"\nTraining complete. Best Val Accuracy: {best_acc:.4f}")
-print("Model saved as: best_traffic_sign_resnet.pth")
+    # Load data
+    full_dataset = TrafficSignDataset(DATASET_PATH)
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_set, val_set = random_split(full_dataset, [train_size, val_size])
+
+    # Apply different transforms
+    train_set.dataset.transform = train_transform
+    val_set.dataset.transform = val_transform
+
+    # num_workers=0 for Windows compatibility
+    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+
+    print(f"Train: {len(train_set)}, Val: {len(val_set)}")
+
+    # ResNet18 Pretrained
+    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    model.fc = nn.Linear(model.fc.in_features, 43)
+    model = model.to(DEVICE)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+
+    # Training loop
+    best_acc = 0.0
+    for epoch in range(EPOCHS):
+        print(f"\nEpoch {epoch+1}/{EPOCHS}")
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer)
+        val_loss, val_acc = validate(model, val_loader, criterion)
+        scheduler.step()
+        print(f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f}")
+        print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+        
+        if val_acc > best_acc:
+            best_acc = val_acc
+            torch.save(model.state_dict(), "best_traffic_sign_resnet.pth")
+            print(f"Saved best model with acc: {best_acc:.4f}")
+
+    print(f"\nTraining complete. Best Val Accuracy: {best_acc:.4f}")
+    print("Model saved as: best_traffic_sign_resnet.pth")

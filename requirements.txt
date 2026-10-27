@@ -3,6 +3,6 @@ torchvision
 opencv-python
 numpy
 pandas
-matplotlib
+tqdm
 flask
 Pillow

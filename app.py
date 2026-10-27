@@ -15,18 +15,18 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
-MODEL_PATH = 'best_traffic_sign_resnet.pth'
+MODEL_PATH = 'best_efficientnet_gtsrb.pth'
 LABEL_FILE = 'labels.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CONFIDENCE_THRESHOLD = 0.60
+CONFIDENCE_THRESHOLD = 0.55
 IMAGE_SIZE = 224
 
 class_df = pd.read_csv(LABEL_FILE)
 class_names = class_df['Name'].tolist()
 
-# Load ResNet18
-model = models.resnet18(weights=None)
-model.fc = nn.Linear(model.fc.in_features, 43)
+# EfficientNet-B0
+model = models.efficientnet_b0(weights=None)
+model.classifier[1] = nn.Linear(model.classifier[1].in_features, 43)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
 model = model.to(DEVICE)
 model.eval()
@@ -39,7 +39,6 @@ transform = transforms.Compose([
 ])
 
 def preprocess_image(img):
-    """img: BGR numpy array from OpenCV"""
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = transform(img)
     return img.unsqueeze(0).to(DEVICE)

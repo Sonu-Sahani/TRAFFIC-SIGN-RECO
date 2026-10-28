@@ -13,18 +13,17 @@ from collections import Counter
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-MODEL_PATH = 'best_efficientnet_gtsrb .pth'  # Note the space in filename
+MODEL_PATH = 'best_efficientnet_gtsrb.pth'
 LABEL_FILE = 'labels.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CONFIDENCE_THRESHOLD = 0.55
+CONFIDENCE_THRESHOLD = 0.60
 IMAGE_SIZE = 224
 
 class_df = pd.read_csv(LABEL_FILE)
 class_names = class_df['Name'].tolist()
 
-# EfficientNet-B0
 model = models.efficientnet_b0(weights=None)
 model.classifier[1] = nn.Linear(model.classifier[1].in_features, 43)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
@@ -107,36 +106,52 @@ def predict_video():
     if 'file' not in request.files:
         return jsonify({"error": "No file"})
     file = request.files['file']
+    if not file.filename:
+        return jsonify({"error": "No file selected"})
+    
     path = os.path.join(UPLOAD_FOLDER, secure_filename(file.filename))
     file.save(path)
     
     try:
         cap = cv2.VideoCapture(path)
+        if not cap.isOpened():
+            return jsonify({"error": "Could not open video"})
+        
         detections = []
         frame_count = 0
-        max_frames = 200
+        max_frames = 300
         
         while cap.isOpened() and frame_count < max_frames:
             ret, frame = cap.read()
             if not ret:
                 break
-            if frame_count % 4 == 0:
+            if frame_count % 3 == 0:  # every 3rd frame
                 tensor = preprocess_image(frame)
                 idx, conf = predict(tensor)
                 if conf >= CONFIDENCE_THRESHOLD:
-                    detections.append(class_names[idx])
+                    detections.append({
+                        "class": class_names[idx],
+                        "confidence": round(conf * 100, 2),
+                        "frame": frame_count
+                    })
             frame_count += 1
         cap.release()
         
         if detections:
-            most_common = Counter(detections).most_common(1)[0]
+            classes = [d['class'] for d in detections]
+            most_common = Counter(classes).most_common(1)[0]
+            avg_conf = np.mean([d['confidence'] for d in detections if d['class'] == most_common[0]])
             return jsonify({
                 "most_common_class": most_common[0],
                 "count": most_common[1],
+                "avg_confidence": round(avg_conf, 2),
                 "total_detections": len(detections),
                 "frames_processed": frame_count
             })
-        return jsonify({"message": "No confident detections", "frames_processed": frame_count})
+        return jsonify({
+            "message": "No confident signs detected in video",
+            "frames_processed": frame_count
+        })
     except Exception as e:
         return jsonify({"error": str(e)})
 

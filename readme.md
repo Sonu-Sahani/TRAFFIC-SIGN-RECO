@@ -1,42 +1,21 @@
-# Traffic Sign Recognition (Modern Version)
+# Traffic Sign Recognition
 
-High-accuracy traffic sign classification using **ResNet18** (pretrained) + strong data augmentation. Supports **Image Upload**, **Live Camera**, and **Video Analysis**.
+EfficientNet-B0 model trained on full GTSRB dataset.
 
-## Why Better?
-- Pretrained ResNet18 → much better real-world accuracy
-- Heavy data augmentation (rotation, color, brightness, scale)
-- RGB images instead of only grayscale
-- Confidence threshold for reliable predictions
+## Features
+- Image Upload prediction
+- Live Camera detection
+- Video Upload analysis
 
-## Quick Start
-
+## Run
 ```bash
-git clone https://github.com/Sonu-Sahani/TRAFFIC-SIGN-RECO.git
-cd TRAFFIC-SIGN-RECO
 pip install -r requirements.txt
-```
-
-### 1. Train the model (one time)
-```bash
-python train.py
-```
-This creates `best_traffic_sign_resnet.pth`.  
-**Recommended:** Use GPU. CPU pe 1–2 hours lag sakte hain.
-
-### 2. Run the web app
-```bash
 python app.py
 ```
 Open: http://localhost:5001
 
-## Features
-- Image Upload prediction
-- Live Camera real-time detection
-- Video Upload → most common sign summary
-- High confidence badge (only shows strong predictions)
+## Model
+`best_efficientnet_gtsrb.pth` (EfficientNet-B0)
 
-## Tech Stack
-Python • PyTorch • ResNet18 • OpenCV • Flask • Bootstrap
-
-## Author
-**Sonu Sahani** — [GitHub](https://github.com/Sonu-Sahani)
+## Note
+Model works best on GTSRB-style images. Real-world photos may have lower accuracy due to domain shift.
